@@ -431,15 +431,43 @@ class GaussianProcessRegression(GPflowPredictor, TrainableProbabilisticModel):
         :param dataset: The data with which to optimize the `model`.
         """
 
+
+        self.optimizer.optimize(self.model, dataset) # do first opt starting from param init
+
+
+
         num_trainable_params_with_priors = tf.reduce_sum(
             [tf.size(param) for param in self.model.trainable_parameters if param.prior is not None]
         )
 
-        if num_trainable_params_with_priors >= 1:  # Find a promising kernel initialization
-            num_prior_samples = tf.minimum(1000, 100 * num_trainable_params_with_priors)
-            self.find_best_model_initialization(num_prior_samples)
 
-        self.optimizer.optimize(self.model, dataset)
+        @tf.function
+        def evaluate_likelihood_of_model_parameters() -> tf.Tensor:
+            return self.model.maximum_log_likelihood_objective()
+
+        if num_trainable_params_with_priors >= 1:  # do some restarts
+            num_random_restarts = 10
+
+            current_best_parameters = read_values(self.model)
+            max_log_likelihood = self.model.maximum_log_likelihood_objective()
+
+            for _ in tf.range(num_random_restarts):
+                randomize_model_hyperparameters(self.model) # random init
+                try:
+                    self.optimizer.optimize(self.model, dataset) # optimize
+                    log_likelihood = evaluate_likelihood_of_model_parameters()
+                except tf.errors.InvalidArgumentError:  # allow failed opts
+                    log_likelihood = -1e100
+
+                if log_likelihood > max_log_likelihood:  # only keep best kernel params
+                    max_log_likelihood = log_likelihood
+                    current_best_parameters = read_values(self.model)
+
+            multiple_assign(self.model, current_best_parameters) # choose best
+
+        
+
+
 
     def find_best_model_initialization(self, num_prior_samples) -> None:
         """

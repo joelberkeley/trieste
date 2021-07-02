@@ -357,36 +357,36 @@ def test_gaussian_process_regression_pairwise_covariance(gpr_interface_factory) 
     np.testing.assert_allclose(expected_covariance, actual_covariance, atol=1e-5)
 
 
-@random_seed
-@unittest.mock.patch(
-    "trieste.models.model_interfaces.GaussianProcessRegression.find_best_model_initialization"
-)
-@pytest.mark.parametrize("d", [1, 2])
-def test_gaussian_process_regression_correctly_counts_num_trainable_params_with_priors(
-    mocked_model_initializer, d, gpr_interface_factory
-) -> None:
-    x = tf.constant(np.arange(1, 5 * d + 1).reshape(-1, d), dtype=tf.float64)  # shape: [5, d]
-    model = gpr_interface_factory(x, _3x_plus_10(x))
-    model.model.kernel = gpflow.kernels.RBF(lengthscales=tf.ones([d], dtype=tf.float64))
-    model.model.likelihood.variance.assign(1.0)
-    gpflow.set_trainable(model.model.likelihood, True)
+# @random_seed
+# @unittest.mock.patch(
+#     "trieste.models.model_interfaces.GaussianProcessRegression.find_best_model_initialization"
+# )
+# @pytest.mark.parametrize("d", [1, 2])
+# def test_gaussian_process_regression_correctly_counts_num_trainable_params_with_priors(
+#     mocked_model_initializer, d, gpr_interface_factory
+# ) -> None:
+#     x = tf.constant(np.arange(1, 5 * d + 1).reshape(-1, d), dtype=tf.float64)  # shape: [5, d]
+#     model = gpr_interface_factory(x, _3x_plus_10(x))
+#     model.model.kernel = gpflow.kernels.RBF(lengthscales=tf.ones([d], dtype=tf.float64))
+#     model.model.likelihood.variance.assign(1.0)
+#     gpflow.set_trainable(model.model.likelihood, True)
 
-    model.model.kernel.lengthscales.prior = tfp.distributions.LogNormal(
-        loc=tf.math.log(model.model.kernel.lengthscales), scale=tf.cast(1.0, dtype=tf.float64)
-    )
-    model.model.likelihood.variance.prior = tfp.distributions.LogNormal(
-        loc=tf.cast(-2.0, dtype=tf.float64), scale=tf.cast(5.0, dtype=tf.float64)
-    )
+#     model.model.kernel.lengthscales.prior = tfp.distributions.LogNormal(
+#         loc=tf.math.log(model.model.kernel.lengthscales), scale=tf.cast(1.0, dtype=tf.float64)
+#     )
+#     model.model.likelihood.variance.prior = tfp.distributions.LogNormal(
+#         loc=tf.cast(-2.0, dtype=tf.float64), scale=tf.cast(5.0, dtype=tf.float64)
+#     )
 
-    if isinstance(model, (VariationalGaussianProcess, SparseVariational)):
-        pytest.skip("find_best_model_initialization is only implemented for the GPR models.")
+#     if isinstance(model, (VariationalGaussianProcess, SparseVariational)):
+#         pytest.skip("find_best_model_initialization is only implemented for the GPR models.")
 
-    dataset = Dataset(x, tf.cast(_3x_plus_10(x), dtype=tf.float64))
-    model.optimize(dataset)
+#     dataset = Dataset(x, tf.cast(_3x_plus_10(x), dtype=tf.float64))
+#     model.optimize(dataset)
 
-    mocked_model_initializer.assert_called_once()
-    num_samples = mocked_model_initializer.call_args[0][0]
-    npt.assert_array_equal(num_samples, tf.minimum(1000, 100 * (d + 1)))
+#     mocked_model_initializer.assert_called_once()
+#     num_samples = mocked_model_initializer.call_args[0][0]
+#     npt.assert_array_equal(num_samples, tf.minimum(1000, 100 * (d + 1)))
 
 
 def test_find_best_model_initialization_only_changes_params_with_priors(
